@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>PPL Pro - Native Workout & Health Suite</title>
+    
+    <!-- PWA Primary & iOS Meta Tags -->
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PPL Pro">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="description" content="Joint-safe Push/Pull/Legs 4-week workout tracker, calorie counter, and fasting timer.">
+
+    <!-- Inline SVG Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='%2310b981'><rect width='100' height='100' rx='20' fill='%230f172a'/><path d='M30 45h40v10H30zM20 35h10v30H20zM70 35h10v30H70z' fill='%2310b981'/></svg>">
+
+    <!-- Dynamic PWA Manifest Injection -->
+    <script>
+        const manifestData = {
+            "name": "PPL Pro Fitness Tracker",
+            "short_name": "PPL Pro",
+            "start_url": "./",
+            "display": "standalone",
+            "background_color": "#0f172a",
+            "theme_color": "#0f172a",
+            "orientation": "portrait",
+            "icons": [
+                {
+                    "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='%2310b981'><rect width='100' height='100' rx='20' fill='%230f172a'/><path d='M30 45h40v10H30zM20 35h10v30H20zM70 35h10v30H70z' fill='%2310b981'/></svg>",
+                    "sizes": "192x192 512x512",
+                    "type": "image/svg+xml",
+                    "purpose": "any maskable"
+                }
+            ]
+        };
+        const manifestString = JSON.stringify(manifestData);
+        const manifestBlob = new Blob([manifestString], {type: 'application/json'});
+        const manifestURL = URL.createObjectURL(manifestBlob);
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = manifestURL;
+        document.head.appendChild(link);
+    </script>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            bg: '#0f172a',        // Slate 900
+                            card: '#1e293b',      // Slate 800
+                            border: '#334155',    // Slate 700
+                            emerald: '#10b981',   // Emerald 500
+                            blue: '#3b82f6',      // Blue 500
+                            amber: '#f59e0b',     // Amber 500
+                            rose: '#f43f5e'       // Rose 500
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        ::-webkit-scrollbar { width: 0px; height: 0px; } /* Hide Scrollbars for App feel */
+        .progress-circle { transition: stroke-dashoffset 0.35s; transform: rotate(-90deg); transform-origin: 50% 50%; }
+        .tap-active:active { transform: scale(0.96); transition: transform 0.1s ease; }
+    </style>
+</head>
+<body class="min-h-screen pb-24 pt-safe select-none">
+
+    <!-- PWA Offline Service Worker Registrar -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                const swCode = `
+                    const CACHE_NAME = 'ppl-pro-v1';
+                    self.addEventListener('install', e => {
+                        e.waitUntil(
+                            caches.open(CACHE_NAME).then(cache => cache.addAll(['./']))
+                        );
+                    });
+                    self.addEventListener('fetch', e => {
+                        e.respondWith(
+                            caches.match(e.request).then(res => res || fetch(e.request))
+                        );
+                    });
+                `;
+                const blob = new Blob([swCode], { type: 'application/javascript' });
+                navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(err => console.log('SW error', err));
+            });
+        }
+    </script>
+
+    <!-- PWA Installation Banner (Shows if Installable) -->
+    <div id="pwa-install-banner" class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2.5 flex justify-between items-center text-xs font-bold shadow-lg hidden sticky top-0 z-50">
+        <div class="flex items-center gap-2">
+            <i class="fa-solid fa-mobile-screen-button text-base animate-bounce"></i>
+            <span>Install PPL Pro on your Home Screen</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="promptPWAInstall()" class="bg-white text-slate-900 px-3 py-1 rounded-lg text-xs font-black shadow tap-active">Install</button>
+            <button onclick="dismissInstallBanner()" class="text-white/80 hover:text-white"><i class="fa-solid fa-xmark text-sm"></i></button>
+        </div>
+    </div>
+
+    <!-- App Top Bar -->
+    <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 sticky top-0 z-40 px-4 h-14 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-sm">
+                <i class="fa-solid fa-bolt"></i>
+            </div>
+            <div>
+                <h1 class="font-extrabold text-sm text-white leading-none">PPL PRO MOBILE</h1>
+                <span class="text-[10px] text-slate-400 font-medium">96kg / 170cm Joint Safe</span>
+            </div>
+        </div>
+
+        <!-- Header Quick Rest Timer Bar -->
+        <div class="bg-slate-800 border border-slate-700/80 rounded-lg px-2.5 py-1 flex items-center gap-2">
+            <i class="fa-solid fa-stopwatch text-emerald-400 text-xs"></i>
+            <span id="header-rest-clock" class="font-mono font-bold text-xs text-emerald-400">00:00</span>
+            <div class="flex gap-1 pl-1 border-l border-slate-700">
+                <button onclick="triggerQuickRest(90)" class="bg-slate-700 hover:bg-slate-600 text-[10px] font-bold text-slate-200 px-1.5 py-0.5 rounded">90s</button>
+                <button onclick="triggerQuickRest(120)" class="bg-slate-700 hover:bg-slate-600 text-[10px] font-bold text-slate-200 px-1.5 py-0.5 rounded">2m</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dynamic Content Canvas -->
+    <main class="max-w-md mx-auto px-4 mt-4">
+
+        <!-- TAB 1: WORKOUT LOG & SESSION -->
+        <section id="view-workout" class="space-y-4">
+            <!-- 90-Min Architecture Bar -->
+            <div class="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3.5 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 text-base font-bold">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span id="session-phase-tag" class="text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">Warmup</span>
+                            <span id="session-timer-clock" class="text-xs font-mono font-bold text-slate-300">90:00</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 font-medium">90-min Session Controller</p>
+                    </div>
+                </div>
+                <button id="session-btn" onclick="toggleSessionClock()" class="bg-emerald-500 text-slate-950 text-xs font-black px-3 py-2 rounded-lg tap-active flex items-center gap-1.5">
+                    <i class="fa-solid fa-play" id="session-btn-icon"></i> <span id="session-btn-text">Start</span>
+                </button>
+            </div>
+
+            <!-- Day Selector Row -->
+            <div class="flex justify-between items-center">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Routine</span>
+                <select id="week-selector" onchange="switchWeek(this.value)" class="bg-slate-800 border border-slate-700 text-xs font-bold text-emerald-400 rounded-lg px-2 py-1 focus:outline-none">
+                    <option value="1">Week 1</option>
+                    <option value="2">Week 2</option>
+                    <option value="3">Week 3</option>
+                    <option value="4">Week 4</option>
+                </select>
+            </div>
+
+            <div class="grid grid-cols-7 gap-1" id="day-tabs-grid">
+                <!-- Javascript injects 7 days -->
+            </div>
+
+            <!-- Active Workout Routine Card -->
+            <div id="routine-container" class="space-y-3">
+                <!-- Dynamic Exercises -->
+            </div>
+        </section>
+
+        <!-- TAB 2: NUTRITION & CALORIES -->
+        <section id="view-calories" class="space-y-4 hidden">
+            <div class="bg-slate-800 border border-slate-700/80 rounded-2xl p-4 space-y-4">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-sm font-black text-white">Daily Macro Blueprint</h2>
+                        <span class="text-[10px] text-slate-400">Target Deficit: 2,150 kcal (Fat Loss)</span>
+                    </div>
+                    <button onclick="clearTodayMeals()" class="text-[10px] bg-slate-900 text-slate-400 border border-slate-700 px-2.5 py-1 rounded-lg font-bold">Clear</button>
+                </div>
+
+                <!-- Circular Progress Ring -->
+                <div class="flex justify-center my-2">
+                    <div class="relative flex items-center justify-center">
+                        <svg class="w-32 h-32">
+                            <circle class="text-slate-900" stroke-width="8" stroke="currentColor" fill="transparent" r="50" cx="64" cy="64"/>
+                            <circle id="cal-ring" class="text-emerald-400 progress-circle" stroke-width="8" stroke-dasharray="314" stroke-dashoffset="314" stroke-linecap="round" stroke="currentColor" fill="transparent" r="50" cx="64" cy="64"/>
+                        </svg>
+                        <div class="absolute text-center">
+                            <span id="cal-count" class="text-xl font-black text-white block">0</span>
+                            <span class="text-[9px] text-slate-400 font-bold uppercase">/ 2,150 kcal</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Macro Progress Bars -->
+                <div class="space-y-2">
+                    <div>
+                        <div class="flex justify-between text-[11px] font-bold mb-1">
+                            <span class="text-emerald-400">Protein (175g Target)</span>
+                            <span id="protein-val" class="text-slate-300">0g</span>
+                        </div>
+                        <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden">
+                            <div id="protein-bar" class="bg-emerald-400 h-full w-0 transition-all"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[11px] font-bold mb-1">
+                            <span class="text-blue-400">Carbs (210g Target)</span>
+                            <span id="carbs-val" class="text-slate-300">0g</span>
+                        </div>
+                        <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden">
+                            <div id="carbs-bar" class="bg-blue-400 h-full w-0 transition-all"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[11px] font-bold mb-1">
+                            <span class="text-amber-400">Fats (60g Target)</span>
+                            <span id="fats-val" class="text-slate-300">0g</span>
+                        </div>
+                        <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden">
+                            <div id="fats-bar" class="bg-amber-400 h-full w-0 transition-all"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Add Meal -->
+            <div class="bg-slate-800 border border-slate-700/80 rounded-2xl p-4 space-y-3">
+                <h3 class="text-xs font-bold text-white"><i class="fa-solid fa-utensils text-emerald-400 mr-1.5"></i> Add Meal Entry</h3>
+                <form onsubmit="addMealEntry(event)" class="space-y-2.5">
+                    <input type="text" id="meal-title" required placeholder="Meal description (e.g., Chicken Breast & Rice)" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-400">
+                    <div class="grid grid-cols-3 gap-2">
+                        <input type="number" id="meal-p" required min="0" placeholder="Protein (g)" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-xs text-white text-center focus:outline-none">
+                        <input type="number" id="meal-c" required min="0" placeholder="Carbs (g)" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-xs text-white text-center focus:outline-none">
+                        <input type="number" id="meal-f" required min="0" placeholder="Fats (g)" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-xs text-white text-center focus:outline-none">
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-500 text-slate-950 font-black py-2 rounded-lg text-xs tap-active">+ Save Meal</button>
+                </form>
+            </div>
+
+            <div id="meal-history-list" class="space-y-2">
+                <!-- Javascript injected -->
+            </div>
+        </section>
+
+        <!-- TAB 3: FASTING TIMER -->
+        <section id="view-fasting" class="space-y-4 hidden">
+            <div class="bg-slate-800 border border-slate-700/80 rounded-2xl p-5 text-center space-y-4">
+                <h2 class="text-sm font-black text-white">Intermittent Fasting Controller</h2>
+
+                <!-- Protocol Selector -->
+                <div class="flex justify-center gap-2">
+                    <button onclick="setFastWindow(16)" id="proto-16" class="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-bold">16:8</button>
+                    <button onclick="setFastWindow(18)" id="proto-18" class="px-3 py-1 bg-slate-900 text-slate-400 border border-slate-700 rounded-lg text-xs font-bold">18:6</button>
+                    <button onclick="setFastWindow(20)" id="proto-20" class="px-3 py-1 bg-slate-900 text-slate-400 border border-slate-700 rounded-lg text-xs font-bold">20:4</button>
+                </div>
+
+                <!-- Timer Ring -->
+                <div class="flex justify-center relative my-4">
+                    <svg class="w-48 h-48">
+                        <circle class="text-slate-900" stroke-width="10" stroke="currentColor" fill="transparent" r="80" cx="96" cy="96"/>
+                        <circle id="fasting-ring" class="text-emerald-400 progress-circle" stroke-width="10" stroke-dasharray="502" stroke-dashoffset="0" stroke-linecap="round" stroke="currentColor" fill="transparent" r="80" cx="96" cy="96"/>
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center space-y-1">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Time Remaining</span>
+                        <span id="fasting-clock" class="text-2xl font-mono font-black text-white">16:00:00</span>
+                    </div>
+                </div>
+
+                <!-- Fast Controls -->
+                <div class="flex justify-center gap-2">
+                    <button id="fast-btn" onclick="toggleFastTimer()" class="bg-emerald-500 text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs tap-active flex items-center gap-2">
+                        <i class="fa-solid fa-play" id="fast-btn-icon"></i> <span id="fast-btn-text">Start Fast</span>
+                    </button>
+                    <button onclick="resetFastTimer()" class="bg-slate-900 text-slate-300 font-bold px-4 py-2.5 rounded-xl text-xs border border-slate-700">Reset</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 4: EXERCISE SAMPLES & SAFETY -->
+        <section id="view-samples" class="space-y-3 hidden">
+            <div class="bg-slate-800 border border-slate-700/80 rounded-2xl p-4">
+                <h2 class="text-sm font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved text-emerald-400"></i> Joint-Safe Exercise Mechanics
+                </h2>
+                <p class="text-[11px] text-slate-400 mt-1">Machine & Cable setups specifically chosen for a 96kg frame to eliminate lower back & knee strain.</p>
+            </div>
+
+            <div id="sample-exercises-list" class="space-y-3">
+                <!-- Javascript populated -->
+            </div>
+        </section>
+
+        <!-- TAB 5: NATIVE APK / PWA INSTALLATION HELPER -->
+        <section id="view-export" class="space-y-4 hidden">
+            <div class="bg-slate-800 border border-slate-700/80 rounded-2xl p-5 space-y-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-android"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-sm font-black text-white">Export & Native APK Guide</h2>
+                        <p class="text-[11px] text-slate-400">Convert this web app into a installable Android .APK file</p>
+                    </div>
+                </div>
+
+                <div class="space-y-3 text-xs">
+                    <div class="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1">
+                        <span class="font-bold text-emerald-400 block">Option 1: Add to Home Screen (Instant PWA)</span>
+                        <p class="text-slate-300 text-[11px]">Tap the browser Share icon and select <strong>"Add to Home Screen"</strong>. This installs the app natively on iOS and Android without extra tools.</p>
+                    </div>
+
+                    <div class="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1">
+                        <span class="font-bold text-blue-400 block">Option 2: Generate Standalone .APK (Android)</span>
+                        <p class="text-slate-300 text-[11px]">To create an executable <code>.apk</code> installer file:</p>
+                        <ol class="list-decimal list-inside text-[11px] text-slate-400 space-y-1 pt-1">
+                            <li>Click <strong>Download HTML Source</strong> below.</li>
+                            <li>Visit free wrapper sites like <a href="https://www.webintoapp.com" target="_blank" class="text-blue-400 underline font-bold">WebIntoApp.com</a> or <a href="https://www.pwabuilder.com" target="_blank" class="text-blue-400 underline font-bold">PWABuilder.com</a>.</li>
+                            <li>Upload this single file to immediately build and download your Android <code>.apk</code> bundle.</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <button onclick="downloadAppSource()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-black py-3 rounded-xl text-xs tap-active flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-download"></i> Download Full Source Code (.html)
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Bottom Mobile Nav Bar -->
+    <nav class="bg-slate-900/95 backdrop-blur border-t border-slate-800 fixed bottom-0 left-0 right-0 z-50 px-2 py-2">
+        <div class="max-w-md mx-auto grid grid-cols-5 gap-1 text-center">
+            <button onclick="switchTab('workout')" id="nav-workout" class="nav-btn text-emerald-400 flex flex-col items-center py-1">
+                <i class="fa-solid fa-dumbbell text-base"></i>
+                <span class="text-[9px] font-bold mt-1">Workout</span>
+            </button>
+            <button onclick="switchTab('calories')" id="nav-calories" class="nav-btn text-slate-500 hover:text-slate-300 flex flex-col items-center py-1">
+                <i class="fa-solid fa-utensils text-base"></i>
+                <span class="text-[9px] font-bold mt-1">Macros</span>
+            </button>
+            <button onclick="switchTab('fasting')" id="nav-fasting" class="nav-btn text-slate-500 hover:text-slate-300 flex flex-col items-center py-1">
+                <i class="fa-solid fa-stopwatch text-base"></i>
+                <span class="text-[9px] font-bold mt-1">Fasting</span>
+            </button>
+            <button onclick="switchTab('samples')" id="nav-samples" class="nav-btn text-slate-500 hover:text-slate-300 flex flex-col items-center py-1">
+                <i class="fa-solid fa-shield-halved text-base"></i>
+                <span class="text-[9px] font-bold mt-1">Guides</span>
+            </button>
+            <button onclick="switchTab('export')" id="nav-export" class="nav-btn text-slate-500 hover:text-slate-300 flex flex-col items-center py-1">
+                <i class="fa-solid fa-mobile-screen text-base"></i>
+                <span class="text-[9px] font-bold mt-1">APK Export</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- App Logic Script -->
+    <script>
+        // Sample Exercises & Alignment
+        const EXERCISES_DB = [
+            { id: 'leg_press', name: '45° Leg Press (Chest Safe)', cat: 'Legs', cue: 'Feet high on sled, knees track outward over 2nd toe. Stop depth before lower back rounds off pad.', rir: '2 RIR' },
+            { id: 'lat_pulldown', name: 'Neutral Grip Lat Pulldown', cat: 'Pull', cue: 'Drive elbows down to side ribs. Slight 10° back tilt; avoid heavy arching.', rir: '2 RIR' },
+            { id: 'chest_press', name: 'Seated Machine Chest Press', cat: 'Push', cue: 'Elbows tucked at 45° angle to torso. Retract shoulder blades into back pad.', rir: '2 RIR' },
+            { id: 'cable_raise', name: 'Cable Lateral Raise', cat: 'Push', cue: 'Pull cable 30° in front of body (Scapular plane). Keep wrist neutral.', rir: '1 RIR' }
+        ];
+
+        const ROUTINES = {
+            1: { name: 'Push A', focus: 'Chest Focus & Triceps' },
+            2: { name: 'Pull A', focus: 'Lat Width & Upper Back' },
+            3: { name: 'Legs A', focus: 'Quad Focus (Joint Safe)' },
+            4: { name: 'Push B', focus: 'Shoulder & Upper Chest' },
+            5: { name: 'Pull B', focus: 'Lat Thickness & Mid-Back' },
+            6: { name: 'Legs B', focus: 'Posterior Chain & Core' },
+            7: { name: 'Rest', focus: 'Active Recovery' }
+        };
+
+        let currentWeek = 1;
+        let activeDay = 1;
+        let meals = [];
+        let deferredPrompt = null;
+
+        // Timers State
+        let sessionSecs = 90 * 60;
+        let isSessionActive = false;
+        let sessionTimer = null;
+
+        let fastHours = 16;
+        let fastSecs = 16 * 3600;
+        let isFastActive = false;
+        let fastTimer = null;
+
+        let restSecs = 0;
+        let restTimer = null;
+
+        window.onload = function() {
+            loadStorage();
+            renderDayTabs();
+            renderActiveRoutine();
+            renderSamplesList();
+            updateMacroUI();
+        };
+
+        // PWA Install Prompt Handler
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('pwa-install-banner').classList.remove('hidden');
+        });
+
+        function promptPWAInstall() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        dismissInstallBanner();
+                    }
+                    deferredPrompt = null;
+                });
+            }
+        }
+
+        function dismissInstallBanner() {
+            document.getElementById('pwa-install-banner').classList.add('hidden');
+        }
+
+        // Tab Switcher
+        function switchTab(tabId) {
+            ['workout', 'calories', 'fasting', 'samples', 'export'].forEach(t => {
+                document.getElementById(`view-${t}`).classList.add('hidden');
+                document.getElementById(`nav-${t}`).className = 'nav-btn text-slate-500 hover:text-slate-300 flex flex-col items-center py-1';
+            });
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            document.getElementById(`nav-${tabId}`).className = 'nav-btn text-emerald-400 flex flex-col items-center py-1';
+        }
+
+        // Workout Tab Logic
+        function renderDayTabs() {
+            const grid = document.getElementById('day-tabs-grid');
+            grid.innerHTML = '';
+            for (let d = 1; d <= 7; d++) {
+                const isSel = activeDay === d;
+                const btn = document.createElement('button');
+                btn.className = `p-1.5 rounded-lg border text-center transition ${isSel ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 font-bold' : 'bg-slate-800 border-slate-700/80 text-slate-400'}`;
+                btn.onclick = () => { activeDay = d; renderDayTabs(); renderActiveRoutine(); };
+                btn.innerHTML = `<span class="text-[9px] uppercase block">${ROUTINES[d].name}</span>`;
+                grid.appendChild(btn);
+            }
+        }
+
+        function renderActiveRoutine() {
+            const container = document.getElementById('routine-container');
+            const dayInfo = ROUTINES[activeDay];
+
+            if (dayInfo.name === 'Rest') {
+                container.innerHTML = `
+                    <div class="bg-slate-800 border border-slate-700/80 rounded-2xl p-6 text-center">
+                        <i class="fa-solid fa-bed text-2xl text-emerald-400 mb-2"></i>
+                        <h3 class="text-sm font-bold text-white">Full Recovery Day</h3>
+                        <p class="text-xs text-slate-400 mt-1">Light walking, stretch lower back, prioritize protein intake.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="bg-slate-800 border border-slate-700/80 rounded-xl p-3 flex justify-between items-center">
+                    <div>
+                        <span class="text-[9px] font-bold text-emerald-400 uppercase">Week ${currentWeek} • ${dayInfo.name}</span>
+                        <h3 class="text-xs font-black text-white">${dayInfo.focus}</h3>
+                    </div>
+                </div>
+                ${EXERCISES_DB.map((ex, i) => `
+                    <div class="bg-slate-800 border border-slate-700/80 rounded-xl p-3.5 space-y-2">
+                        <div class="flex justify-between items-start">
+                            <h4 class="text-xs font-bold text-white">${i + 1}. ${ex.name}</h4>
+                            <span class="text-[10px] bg-slate-900 border border-slate-700 px-2 py-0.5 rounded text-slate-300 font-semibold">3 Sets × ${ex.rir}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-300 bg-slate-900 p-2 rounded-lg border border-slate-800"><strong class="text-emerald-400">Cue:</strong> ${ex.cue}</p>
+                        <div class="grid grid-cols-3 gap-2 pt-1 text-[10px]">
+                            <input type="number" placeholder="Set 1 (kg)" class="bg-slate-900 border border-slate-700 text-center rounded p-1.5 text-white focus:outline-none">
+                            <input type="number" placeholder="Set 2 (kg)" class="bg-slate-900 border border-slate-700 text-center rounded p-1.5 text-white focus:outline-none">
+                            <input type="number" placeholder="Set 3 (kg)" class="bg-slate-900 border border-slate-700 text-center rounded p-1.5 text-white focus:outline-none">
+                        </div>
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        // Calorie & Macro Logic
+        function addMealEntry(e) {
+            e.preventDefault();
+            const name = document.getElementById('meal-title').value;
+            const p = parseInt(document.getElementById('meal-p').value, 10) || 0;
+            const c = parseInt(document.getElementById('meal-c').value, 10) || 0;
+            const f = parseInt(document.getElementById('meal-f').value, 10) || 0;
+            const kcal = (p * 4) + (c * 4) + (f * 9);
+
+            meals.push({ id: Date.now(), name, p, c, f, kcal });
+            saveStorage();
+            updateMacroUI();
+            e.target.reset();
+        }
+
+        function updateMacroUI() {
+            let totKcal = 0, totP = 0, totC = 0, totF = 0;
+            meals.forEach(m => { totKcal += m.kcal; totP += m.p; totC += m.c; totF += m.f; });
+
+            document.getElementById('cal-count').innerText = totKcal;
+            document.getElementById('protein-val').innerText = `${totP}g`;
+            document.getElementById('carbs-val').innerText = `${totC}g`;
+            document.getElementById('fats-val').innerText = `${totF}g`;
+
+            document.getElementById('protein-bar').style.width = `${Math.min(100, (totP/175)*100)}%`;
+            document.getElementById('carbs-bar').style.width = `${Math.min(100, (totC/210)*100)}%`;
+            document.getElementById('fats-bar').style.width = `${Math.min(100, (totF/60)*100)}%`;
+
+            // Ring calculation
+            const pct = Math.min(1, totKcal / 2150);
+            document.getElementById('cal-ring').style.strokeDashoffset = 314 - (pct * 314);
+
+            const list = document.getElementById('meal-history-list');
+            list.innerHTML = meals.map(m => `
+                <div class="bg-slate-800 border border-slate-700/80 p-2.5 rounded-xl flex justify-between items-center text-xs">
+                    <div>
+                        <span class="font-bold text-white block">${m.name}</span>
+                        <span class="text-[10px] text-slate-400">P:${m.p}g C:${m.c}g F:${m.f}g</span>
+                    </div>
+                    <span class="font-bold text-emerald-400">${m.kcal} kcal</span>
+                </div>
+            `).join('');
+        }
+
+        function clearTodayMeals() {
+            meals = [];
+            saveStorage();
+            updateMacroUI();
+        }
+
+        // Fasting Timer Logic
+        function setFastWindow(hrs) {
+            fastHours = hrs;
+            fastSecs = hrs * 3600;
+            ['16', '18', '20'].forEach(h => {
+                document.getElementById(`proto-${h}`).className = parseInt(h) === hrs ?
+                    'px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-bold' :
+                    'px-3 py-1 bg-slate-900 text-slate-400 border border-slate-700 rounded-lg text-xs font-bold';
+            });
+            updateFastDisplay();
+        }
+
+        function toggleFastTimer() {
+            if (isFastActive) {
+                clearInterval(fastTimer);
+                isFastActive = false;
+                document.getElementById('fast-btn-icon').className = 'fa-solid fa-play';
+                document.getElementById('fast-btn-text').innerText = 'Resume Fast';
+            } else {
+                isFastActive = true;
+                document.getElementById('fast-btn-icon').className = 'fa-solid fa-pause';
+                document.getElementById('fast-btn-text').innerText = 'Pause Fast';
+                fastTimer = setInterval(() => {
+                    if (fastSecs > 0) { fastSecs--; updateFastDisplay(); }
+                }, 1000);
+            }
+        }
+
+        function resetFastTimer() {
+            clearInterval(fastTimer);
+            isFastActive = false;
+            fastSecs = fastHours * 3600;
+            document.getElementById('fast-btn-icon').className = 'fa-solid fa-play';
+            document.getElementById('fast-btn-text').innerText = 'Start Fast';
+            updateFastDisplay();
+        }
+
+        function updateFastDisplay() {
+            const h = Math.floor(fastSecs / 3600);
+            const m = Math.floor((fastSecs % 3600) / 60);
+            const s = fastSecs % 60;
+            document.getElementById('fasting-clock').innerText = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+            const pct = fastSecs / (fastHours * 3600);
+            document.getElementById('fasting-ring').style.strokeDashoffset = 502 * (1 - pct);
+        }
+
+        // Timers & Guides Helper
+        function toggleSessionClock() {
+            if (isSessionActive) {
+                clearInterval(sessionTimer);
+                isSessionActive = false;
+                document.getElementById('session-btn-text').innerText = 'Resume';
+            } else {
+                isSessionActive = true;
+                document.getElementById('session-btn-text').innerText = 'Pause';
+                sessionTimer = setInterval(() => {
+                    if (sessionSecs > 0) {
+                        sessionSecs--;
+                        const m = Math.floor(sessionSecs / 60);
+                        const s = sessionSecs % 60;
+                        document.getElementById('session-timer-clock').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+                    }
+                }, 1000);
+            }
+        }
+
+        function triggerQuickRest(sec) {
+            clearInterval(restTimer);
+            restSecs = sec;
+            restTimer = setInterval(() => {
+                if (restSecs > 0) {
+                    restSecs--;
+                    const m = Math.floor(restSecs / 60);
+                    const s = restSecs % 60;
+                    document.getElementById('header-rest-clock').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+                } else {
+                    clearInterval(restTimer);
+                    document.getElementById('header-rest-clock').innerText = '00:00';
+                }
+            }, 1000);
+        }
+
+        function renderSamplesList() {
+            const list = document.getElementById('sample-exercises-list');
+            list.innerHTML = EXERCISES_DB.map(ex => `
+                <div class="bg-slate-800 border border-slate-700/80 rounded-xl p-3.5 space-y-1.5">
+                    <span class="text-[9px] text-emerald-400 font-bold uppercase">${ex.cat}</span>
+                    <h3 class="text-xs font-bold text-white">${ex.name}</h3>
+                    <p class="text-[11px] text-slate-300 leading-normal">${ex.cue}</p>
+                </div>
+            `).join('');
+        }
+
+        function downloadAppSource() {
+            const htmlContent = document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'PPL_Pro_Workout_App.html';
+            a.click();
+        }
+
+        function saveStorage() { localStorage.setItem('ppl_pwa_meals', JSON.stringify(meals)); }
+        function loadStorage() {
+            const data = localStorage.getItem('ppl_pwa_meals');
+            if (data) meals = JSON.parse(data);
+        }
+    </script>
+</body>
+</html>
